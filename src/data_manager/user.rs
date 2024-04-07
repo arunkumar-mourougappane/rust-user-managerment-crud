@@ -2,6 +2,7 @@ use std::fmt;
 
 #[warn(dead_code)]
 #[derive(Debug)]
+#[derive(Clone)]
 
 pub struct User {
     active: bool,
@@ -40,8 +41,12 @@ impl User {
         self.first_name = first_name;
     }
 
-    pub fn set_active(&mut self, active: bool) {
-        self.active = active;
+    pub fn set_active(&mut self) {
+        self.active = true;
+    }
+
+    pub fn set_inactive(&mut self) {
+        self.active = false;
     }
 
     pub fn set_email(&mut self, email: String) {
