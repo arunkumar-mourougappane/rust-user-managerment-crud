@@ -1,8 +1,9 @@
 mod data_manager;
+mod graphics;
 
-use crate::data_manager::user::User;
-use pad::PadStr;
-use std::{collections::HashMap, fmt, io::{self, Write}, process::{exit, Command}, str::FromStr, u64};
+use crate::{data_manager::user::User, graphics::graphics::{print_borderline, print_padded}};
+use graphics::graphics::{clear_terminal_screen, print_padded_to_left, print_header};
+use std::{collections::HashMap, fmt, io::{self, Write}, process::exit, str::FromStr};
 use std::option::Option;
 
 enum UserCrudOptions {
@@ -123,37 +124,6 @@ fn get_update_user_property_option() -> UpdateOptions {
 }
 
 
-fn print_borderline(border_delimiter: char) {
-    println!(
-        "{}",
-        String::from("").pad(100, border_delimiter, pad::Alignment::Left, false)
-    );
-}
-
-fn print_custom_padded(string_to_pring:String, delimiter:char, padding_length:usize )
-{
-    println!(
-        "{}",
-        string_to_pring.pad( padding_length , delimiter, pad::Alignment::Left, false)
-    );
-}
-
-fn print_padded(string_to_pring:String, delimiter:char)
-{
-    println!(
-        "{}",
-        string_to_pring.pad(100, delimiter, pad::Alignment::Left, false)
-    );
-}
-fn print_header(header_string: String) {
-    print_borderline('#');
-    println!(
-        "{}",
-        header_string.pad(100, ' ', pad::Alignment::Middle, false)
-    );
-    print_borderline('#');
-}
-
 fn add_to_user_database(account_id: u64, user_database: &mut HashMap<u64, User>) {
     print_header("Add User".to_string());
     let (first_name, last_name, username, email) = get_user_info_from_stdio();
@@ -199,31 +169,14 @@ fn print_all_user_info(user_database: &HashMap<u64, User>) {
     print_borderline('-');
 }
 
-fn clear_terminal_screen() {
-    if cfg!(target_os = "windows") {
-        Command::new("cmd")
-            .args(["/c", "cls"])
-            .spawn()
-            .expect("cls command failed to start")
-            .wait()
-            .expect("failed to wait");
-    } else {
-        Command::new("clear")
-            .spawn()
-            .expect("clear command failed to start")
-            .wait()
-            .expect("failed to wait");
-    };
-}
 
 fn print_user_info(user_info: &User){
     print_header(format!("Account ID {} Information", user_info.get_account_id()));
-    print_custom_padded(format!("First Name: {}", user_info.get_first_name()), ' ', 20);
-    print_custom_padded(format!("Last Name: {}", user_info.get_last_name()), ' ', 20);
-    print_custom_padded(format!("Usermame: {}", user_info.get_username()), ' ', 20);
-    print_custom_padded(format!("Email Id: {}", user_info.get_email()), ' ', 20);
-    print_custom_padded(format!("Active Status: {}",if  user_info.is_active() { "Yes" } else { "No" }), ' ', 20);
-
+    print_padded_to_left(format!("First Name: {}", user_info.get_first_name()), ' ', 20);
+    print_padded_to_left(format!("Last Name: {}", user_info.get_last_name()), ' ', 20);
+    print_padded_to_left(format!("Usermame: {}", user_info.get_username()), ' ', 20);
+    print_padded_to_left(format!("Email Id: {}", user_info.get_email()), ' ', 20);
+    print_padded_to_left(format!("Active Status: {}",if  user_info.is_active() { "Yes" } else { "No" }), ' ', 20);
 }
 
 fn print_user_info_by_id(user_database: &HashMap<u64, User>) -> u64{
