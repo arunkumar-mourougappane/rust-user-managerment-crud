@@ -2,7 +2,8 @@ mod data_manager;
 
 use crate::data_manager::user::User;
 use pad::PadStr;
-use std::{collections::HashMap, fmt, io::{self, Write}, process::{exit, Command}, str::FromStr};
+use std::{collections::HashMap, fmt, io::{self, Write}, process::{exit, Command}, str::FromStr, u64};
+use std::option::Option;
 
 enum UserCrudOptions {
     None = 0,
@@ -45,12 +46,37 @@ impl fmt::Display for UserCrudOptions {
     }
 }
 
-// enum UpdateOptions {
-//     None,
-//     FirstName,
-//     LastName,
-//     Email
-// }
+enum UpdateOptions {
+    None = 0,
+    FirstName,
+    LastName,
+    Email,
+}
+
+impl FromStr for UpdateOptions {
+    type Err = ();
+
+    fn from_str(input: &str) -> Result<UpdateOptions, Self::Err> {
+        match input {
+            "0" => Ok(UpdateOptions::None),
+            "1" => Ok(UpdateOptions::FirstName),
+            "2" => Ok(UpdateOptions::LastName),
+            "3" => Ok(UpdateOptions::Email),
+            _ => Err(()),
+        }
+    }
+}
+
+impl fmt::Display for UpdateOptions {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            UpdateOptions::None => write!(f, "0"),
+            UpdateOptions::FirstName => write!(f, "1"),
+            UpdateOptions::LastName => write!(f, "2"),
+            UpdateOptions::Email => write!(f, "3"),
+        }
+    }
+}
 
 fn get_user_info_from_stdio() -> (String, String, String, String) {
     print!("First Name: ");
@@ -77,6 +103,25 @@ fn get_user_info_from_stdio() -> (String, String, String, String) {
         email.trim().to_owned(),
     );
 }
+
+fn get_update_user_property_option() -> UpdateOptions {
+    print_header(String::from("User Management"));
+    print_header(String::from("Edit User"));
+    print_padded("1. First Name".to_string(), ' ');
+    print_padded("2. Last Name".to_string(), ' ');
+    print_padded("3. Email".to_string(), ' ');
+    print_padded("*. Exit Program".to_string(), ' ');
+    print_borderline('-');
+    print!("{}", "Option: ");
+    let _ = io::stdout().flush();
+    let menu_option: UpdateOptions;
+    let mut input_string: String = "".to_string();
+    std::io::stdin().read_line(&mut input_string).unwrap();
+    menu_option = input_string.trim().parse().unwrap_or(UpdateOptions::None);
+
+    return menu_option;
+}
+
 
 fn print_borderline(border_delimiter: char) {
     println!(
@@ -181,7 +226,7 @@ fn print_user_info(user_info: &User){
 
 }
 
-fn print_user_info_by_id(user_database: &HashMap<u64, User>){
+fn print_user_info_by_id(user_database: &HashMap<u64, User>) -> u64{
     print_header("User Information".to_string());
     print_borderline('-');
     print!(" Account Id: ");
@@ -197,14 +242,18 @@ fn print_user_info_by_id(user_database: &HashMap<u64, User>){
         Ok(acc_id) => {
             if user_database.len() == 0  || ! user_database.contains_key(&acc_id) {
                 print_padded("Cannot Find User Information!".to_string(), ' ');
+                return 0;
             }
             else{
                 print_user_info(user_database.get(&acc_id).unwrap());
+                return acc_id;
             }
         }
         Err(..) => println!("Cannot parse input: {}", trimmed),
     };
+    return 0;
 }
+
 
 fn deactivate_activate_user_by_id(user_database: &mut HashMap<u64, User>, activate_flag: bool){
     print_header("User Activation/Deactivation".to_string());
@@ -247,6 +296,72 @@ fn deactivate_activate_user_by_id(user_database: &mut HashMap<u64, User>, activa
     };
 }
 
+fn update_user_infomation_by_id(user_database: &mut HashMap<u64, User>) {
+    let account_id: u64 = print_user_info_by_id(&user_database);
+    if account_id != 0 {
+        let menu_option = get_update_user_property_option();
+        match menu_option {
+            UpdateOptions::None => {
+                println!("Skip Updating User Information.");
+                return;
+            }
+            _ => {},
+        }
+        print_borderline('#');
+        let mut user_info = find_user_by_account_id(&user_database, account_id).unwrap().clone();
+        match menu_option
+        {
+            UpdateOptions::FirstName => {
+                println!("Current First Name: {}", user_info.get_first_name());
+                print!("New First Name: ");
+                let _ = io::stdout().flush();
+                let mut first_name = String::from("");
+                std::io::stdin().read_line(&mut first_name).unwrap();
+
+                user_info.set_first_name(first_name.trim().to_owned());
+            },
+            UpdateOptions::LastName => {
+                println!("Current Last Name: {}", user_info.get_last_name());
+                print!("New Last Name: ");
+                let _ = io::stdout().flush();
+                let mut last_name = String::from("");
+                std::io::stdin().read_line(&mut last_name).unwrap();
+
+                user_info.set_last_name(last_name.trim().to_owned());
+            },
+            UpdateOptions::Email => {
+                println!("Current Email Id: {}", user_info.get_email());
+                print!("New Email Id: ");
+                let _ = io::stdout().flush();
+                let mut email = String::from("");
+                std::io::stdin().read_line(&mut email).unwrap();
+
+                user_info.set_email(email.trim().to_owned());
+            },
+            UpdateOptions::None => {
+                print_header(format!("No data would be updated for account Id: {}", account_id));
+            },
+        }
+        user_database.insert(user_info.get_account_id(), user_info);
+        print_header("Updated User Information Successfully!".to_string());
+    }
+    else {
+        print_header("Skip Updating User Information.".to_string());
+    }
+}
+
+fn find_user_by_account_id(user_database: &HashMap<u64, User>, account_id: u64) -> Option<User> {
+
+    if user_database.len() == 0  || ! user_database.contains_key(&account_id) {
+        print_padded("Cannot Find User Information!".to_string(), ' ');
+        return None;
+    }
+    else{
+        let user_info = user_database.get(&account_id).unwrap().clone();
+        return Some(user_info);
+    }
+}
+
 fn main() -> ! {
 
     let mut user_database: HashMap<u64, User> = HashMap::new();
@@ -269,7 +384,7 @@ fn main() -> ! {
                 print_all_user_info(&user_database);
             }
             UserCrudOptions::Update => {
-                print_padded("Updating Data".to_string(), ' ');
+                update_user_infomation_by_id(&mut user_database)
             }
             UserCrudOptions::Deactivate => {
                 deactivate_activate_user_by_id(&mut user_database, false);
