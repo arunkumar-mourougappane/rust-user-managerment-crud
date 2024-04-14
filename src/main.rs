@@ -1,8 +1,8 @@
 mod data_manager;
 mod graphics;
 
-use crate::{data_manager::user::User, graphics::graphics::{print_borderline, print_padded}};
-use graphics::graphics::{clear_terminal_screen, print_padded_to_left, print_header};
+use crate::{data_manager::user::User, graphics::padding::{print_borderline, print_padded}};
+use graphics::padding::{clear_terminal_screen, print_padded_to_left, print_header};
 use std::{collections::HashMap, fmt, io::{self, Write}, process::exit, str::FromStr};
 use std::option::Option;
 
