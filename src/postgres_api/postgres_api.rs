@@ -69,11 +69,106 @@ impl PostgresClient {
         }
     }
 
+    pub fn get_all_users(&mut self) -> Result<Vec<User>, PostgressApiError> {
+        let stmt = self.client.prepare(
+            "SELECT account_id, first_name, last_name, username, email, active FROM user_info",
+        );
+        if stmt.is_err() {
+            return Err(PostgressApiError::FailedQueryStatement);
+        }
+        let mut active_users = Vec::<User>::new();
+
+        let result_set = self.client.query(&stmt.unwrap(), &[]);
+        match result_set {
+            Ok(user_infos) => {
+                for user_info in user_infos {
+                    let id: String = user_info.get(0);
+                    let user = User::new(
+                        user_info.get("active"),
+                        user_info.get("first_name"),
+                        user_info.get("last_name"),
+                        user_info.get("username"),
+                        user_info.get("email"),
+                        id.parse::<u64>().unwrap(),
+                    );
+                    active_users.push(user);
+                }
+                return Ok(active_users);
+            }
+            Err(_) => {
+                return Err(PostgressApiError::FailedQueryStatement);
+            }
+        };
+    }
+
+    pub fn get_inactive_users(&mut self) -> Result<Vec<User>, PostgressApiError> {
+        let stmt = self.client.prepare("SELECT account_id, first_name, last_name, username, email, active FROM user_info WHERE active = $1");
+        if stmt.is_err() {
+            return Err(PostgressApiError::FailedQueryStatement);
+        }
+        let mut active_users = Vec::<User>::new();
+
+        let result_set = self.client.query(&stmt.unwrap(), &[&false]);
+        match result_set {
+            Ok(user_infos) => {
+                for user_info in user_infos {
+                    let id: String = user_info.get(0);
+                    let user = User::new(
+                        user_info.get("active"),
+                        user_info.get("first_name"),
+                        user_info.get("last_name"),
+                        user_info.get("username"),
+                        user_info.get("email"),
+                        id.parse::<u64>().unwrap(),
+                    );
+                    active_users.push(user);
+                }
+                return Ok(active_users);
+            }
+            Err(_) => {
+                return Err(PostgressApiError::FailedQueryStatement);
+            }
+        };
+    }
+
+    pub fn get_active_users(&mut self) -> Result<Vec<User>, PostgressApiError> {
+        let stmt = self.client.prepare("SELECT account_id, first_name, last_name, username, email, active FROM user_info WHERE active = $1");
+        if stmt.is_err() {
+            return Err(PostgressApiError::FailedQueryStatement);
+        }
+        let mut active_users = Vec::<User>::new();
+
+        let result_set = self.client.query(&stmt.unwrap(), &[&true]);
+        match result_set {
+            Ok(user_infos) => {
+                for user_info in user_infos {
+                    let id: String = user_info.get(0);
+                    let user = User::new(
+                        user_info.get("active"),
+                        user_info.get("first_name"),
+                        user_info.get("last_name"),
+                        user_info.get("username"),
+                        user_info.get("email"),
+                        id.parse::<u64>().unwrap(),
+                    );
+                    active_users.push(user);
+                }
+                return Ok(active_users);
+            }
+            Err(_) => {
+                return Err(PostgressApiError::FailedQueryStatement);
+            }
+        };
+    }
+
     pub fn find_user_by_account_id(&mut self, account_id: u64) -> Result<User, PostgressApiError> {
-        let stmt = self.client.prepare("SELECT account_id, first_name, last_name, username, email, active FROM user_info WHERE account_id = $1").unwrap();
+        let stmt = self.client.prepare("SELECT account_id, first_name, last_name, username, email, active FROM user_info WHERE account_id = $1");
+        if stmt.is_err() {
+            return Err(PostgressApiError::FailedQueryStatement);
+        }
         let row = self
             .client
-            .query_one(&stmt, &[&account_id.to_string().as_str()]);
+            .query_one(&stmt.unwrap(), &[&account_id.to_string().as_str()]);
         match row {
             Ok(user_info) => {
                 let id: String = user_info.get(0);
