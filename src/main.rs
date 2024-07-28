@@ -1,5 +1,6 @@
 mod data_manager;
 mod graphics;
+mod postgres_api;
 
 use crate::{data_manager::user::User, graphics::padding::{print_borderline, print_padded}};
 use graphics::padding::{clear_terminal_screen, print_padded_to_left, print_header};

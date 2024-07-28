@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 pad = "0.1.6"
+postgres = { version = "0.19.8", features = ["array-impls"] }
+thiserror = "1.0.63"
