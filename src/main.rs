@@ -1,11 +1,23 @@
 mod data_manager;
 mod graphics;
-mod postgres_api;
+mod model_data_access;
 
-use crate::{data_manager::user::User, graphics::padding::{print_borderline, print_padded}};
-use graphics::padding::{clear_terminal_screen, print_padded_to_left, print_header};
-use std::{collections::HashMap, fmt, io::{self, Write}, process::exit, str::FromStr};
+use crate::{
+    data_manager::user::User,
+    graphics::padding::{print_borderline, print_padded},
+};
+use graphics::padding::{clear_terminal_screen, print_header, print_padded_to_left};
+use model_data_access::postgres_api::{PostgresClient, PostgresConfig};
+
 use std::option::Option;
+use std::{
+    fmt,
+    io::{self, Write},
+    process::exit,
+    str::FromStr,
+};
+
+use base64::prelude::*;
 
 enum UserCrudOptions {
     None = 0,
@@ -80,6 +92,8 @@ impl fmt::Display for UpdateOptions {
     }
 }
 
+const DB_CREDENTIAL_PASS: &str = "Ni54ZS1nZk1vaVliYV90aGphYzI=";
+
 fn get_user_info_from_stdio() -> (String, String, String, String) {
     print!("First Name: ");
     let _ = io::stdout().flush();
@@ -114,22 +128,37 @@ fn get_update_user_property_option() -> UpdateOptions {
     print_padded("3. Email".to_string(), ' ');
     print_padded("*. Exit Program".to_string(), ' ');
     print_borderline('-');
-    print!("{}", "Option: ");
+    print!("Option: ");
     let _ = io::stdout().flush();
-    let menu_option: UpdateOptions;
+
     let mut input_string: String = "".to_string();
     std::io::stdin().read_line(&mut input_string).unwrap();
-    menu_option = input_string.trim().parse().unwrap_or(UpdateOptions::None);
-
-    return menu_option;
+    input_string.trim().parse().unwrap_or(UpdateOptions::None)
 }
 
-
-fn add_to_user_database(account_id: u64, user_database: &mut HashMap<u64, User>) {
+async fn add_to_user_database() {
     print_header("Add User".to_string());
     let (first_name, last_name, username, email) = get_user_info_from_stdio();
-    let user_info = User::new(true, first_name, last_name, username, email, account_id);
-    user_database.insert(account_id, user_info);
+    let user_info = User::new(true, first_name, last_name, username, email, 0);
+    let credential =
+        String::from_utf8(BASE64_STANDARD.decode(DB_CREDENTIAL_PASS).unwrap()).unwrap();
+
+    let postgres_config = PostgresConfig::new(
+        "localhost".to_string(),
+        5432,
+        "studentdb".to_string(),
+        "rustapp".to_string(),
+        credential,
+    );
+    let postgres_cli = PostgresClient::new(&postgres_config);
+    match postgres_cli.await.add_user(user_info).await {
+        Ok(user_info) => {
+            print_user_info(&user_info);
+        }
+        Err(_) => {
+            println!("Failed to add user.");
+        }
+    };
 }
 
 fn get_menu_option() -> UserCrudOptions {
@@ -143,44 +172,81 @@ fn get_menu_option() -> UserCrudOptions {
     print_padded("6. Activate User".to_string(), ' ');
     print_padded("*. Exit Program".to_string(), ' ');
     print_borderline('-');
-    print!("{}", "Option: ");
+    print!("Option: ");
     let _ = io::stdout().flush();
-    let menu_option: UserCrudOptions;
     let mut input_string: String = "".to_string();
     std::io::stdin().read_line(&mut input_string).unwrap();
-    menu_option = input_string.trim().parse().unwrap_or(UserCrudOptions::None);
 
-    return menu_option;
+    input_string.trim().parse().unwrap_or(UserCrudOptions::None)
 }
 
-fn print_all_user_info(user_database: &HashMap<u64, User>) {
+async fn print_all_user_info() {
     print_header(String::from(" User Data "));
-    println!(
-        "{:^10}|{:^20}|{:^20}|{:^15}|{:^20}|{:^10}",
-        "Account ID", "First Name", "Last Name", "Username", "Email Id", "Active"
+    let credential =
+        String::from_utf8(BASE64_STANDARD.decode(DB_CREDENTIAL_PASS).unwrap()).unwrap();
+
+    let postgres_config = PostgresConfig::new(
+        "localhost".to_string(),
+        5432,
+        "studentdb".to_string(),
+        "rustapp".to_string(),
+        credential,
     );
-    print_borderline('-');
-    if user_database.len() > 0 {
-        for (_account_id, user_info) in user_database {
-            println!("{}", user_info);
+    let postgres_cli = PostgresClient::new(&postgres_config);
+    let user_data = postgres_cli.await.get_all_users().await;
+
+    match user_data {
+        Ok(user_data) => {
+            println!(
+                "{:^10}|{:^20}|{:^20}|{:^15}|{:^20}|{:^10}",
+                "Account ID", "First Name", "Last Name", "Username", "Email Id", "Active"
+            );
+            print_borderline('-');
+            for (_account_id, user_info) in user_data {
+                println!("{}", user_info);
+            }
         }
-    } else {
-        println!("{:-^1$}", " No User Records ", 100);
-    }
+        Err(_) => println!("{:-^1$}", " No User Records ", 100),
+    };
+
     print_borderline('-');
 }
 
-
-fn print_user_info(user_info: &User){
-    print_header(format!("Account ID {} Information", user_info.get_account_id()));
-    print_padded_to_left(format!("First Name: {}", user_info.get_first_name()), ' ', 20);
+fn print_user_info(user_info: &User) {
+    print_header(format!(
+        "Account ID {} Information",
+        user_info.get_account_id()
+    ));
+    print_padded_to_left(
+        format!("First Name: {}", user_info.get_first_name()),
+        ' ',
+        20,
+    );
     print_padded_to_left(format!("Last Name: {}", user_info.get_last_name()), ' ', 20);
     print_padded_to_left(format!("Usermame: {}", user_info.get_username()), ' ', 20);
     print_padded_to_left(format!("Email Id: {}", user_info.get_email()), ' ', 20);
-    print_padded_to_left(format!("Active Status: {}",if  user_info.is_active() { "Yes" } else { "No" }), ' ', 20);
+    print_padded_to_left(
+        format!(
+            "Active Status: {}",
+            if user_info.is_active() { "Yes" } else { "No" }
+        ),
+        ' ',
+        20,
+    );
 }
 
-fn print_user_info_by_id(user_database: &HashMap<u64, User>) -> u64{
+async fn print_user_info_by_id() -> u64 {
+    let credential =
+        String::from_utf8(BASE64_STANDARD.decode(DB_CREDENTIAL_PASS).unwrap()).unwrap();
+
+    let postgres_config = PostgresConfig::new(
+        "localhost".to_string(),
+        5432,
+        "studentdb".to_string(),
+        "rustapp".to_string(),
+        credential,
+    );
+    let postgres_cli = PostgresClient::new(&postgres_config);
     print_header("User Information".to_string());
     print_borderline('-');
     print!(" Account Id: ");
@@ -194,22 +260,23 @@ fn print_user_info_by_id(user_database: &HashMap<u64, User>) -> u64{
     let trimmed = input_text.trim();
     match trimmed.parse::<u64>() {
         Ok(acc_id) => {
-            if user_database.len() == 0  || ! user_database.contains_key(&acc_id) {
-                print_padded("Cannot Find User Information!".to_string(), ' ');
-                return 0;
-            }
-            else{
-                print_user_info(user_database.get(&acc_id).unwrap());
-                return acc_id;
+            let user_data = postgres_cli.await.find_user_by_account_id(acc_id).await;
+            match user_data {
+                Ok(user) => {
+                    print_user_info(&user);
+                    return acc_id;
+                }
+                Err(_) => {
+                    return 0;
+                }
             }
         }
         Err(..) => println!("Cannot parse input: {}", trimmed),
-    };
-    return 0;
+    }
+    0
 }
 
-
-fn deactivate_activate_user_by_id(user_database: &mut HashMap<u64, User>, activate_flag: bool){
+async fn deactivate_activate_user_by_id(activate_flag: bool) {
     print_header("User Activation/Deactivation".to_string());
     print_borderline('-');
     print!(" Account Id: ");
@@ -223,26 +290,58 @@ fn deactivate_activate_user_by_id(user_database: &mut HashMap<u64, User>, activa
     let trimmed = input_text.trim();
     match trimmed.parse::<u64>() {
         Ok(acc_id) => {
-            if user_database.len() == 0  || ! user_database.contains_key(&acc_id) {
-                print_padded("Cannot Find User Information!".to_string(), ' ');
-            }
-            else{
-                print_user_info(user_database.get(&acc_id).unwrap());
-                print!("Do you want to {} user (Y/N)?  ", if activate_flag { "activate" } else { "deactivate" } );
-                _ = io::stdout().flush();
-                let mut input_text = String::new();
-                io::stdin()
-                    .read_line(&mut input_text)
-                    .expect("failed to read from stdin");
-                if input_text.trim().to_lowercase() == "y"{
-                    let mut user_info = user_database.get(&acc_id).unwrap().clone();
-                    if activate_flag {
-                        user_info.set_active();
+            let user_data = find_user_by_account_id(acc_id).await;
+            match user_data {
+                Some(user) => {
+                    print_user_info(&user);
+                    print!(
+                        "Do you want to {} user (Y/N)?  ",
+                        if activate_flag {
+                            "activate"
+                        } else {
+                            "deactivate"
+                        }
+                    );
+                    _ = io::stdout().flush();
+                    let mut input_text = String::new();
+                    io::stdin()
+                        .read_line(&mut input_text)
+                        .expect("failed to read from stdin");
+                    if input_text.trim().to_lowercase() == "y" {
+                        let credential =
+                            String::from_utf8(BASE64_STANDARD.decode(DB_CREDENTIAL_PASS).unwrap())
+                                .unwrap();
+
+                        let postgres_config = PostgresConfig::new(
+                            "localhost".to_string(),
+                            5432,
+                            "studentdb".to_string(),
+                            "rustapp".to_string(),
+                            credential,
+                        );
+                        let postgres_cli = PostgresClient::new(&postgres_config);
+                        let activation_result = postgres_cli
+                            .await
+                            .activate_deactivate_user(acc_id, activate_flag)
+                            .await;
+
+                        match activation_result {
+                            Ok(user) => print_user_info(&user),
+                            Err(_) => {
+                                println!(
+                                    "Failed to {} user account.",
+                                    if activate_flag {
+                                        "activate"
+                                    } else {
+                                        "deacivate"
+                                    }
+                                );
+                            }
+                        }
                     }
-                    else{
-                        user_info.set_inactive();
-                    }
-                    user_database.insert(user_info.get_account_id(), user_info.clone());
+                }
+                None => {
+                    print_padded("Cannot Find User Information!".to_string(), ' ');
                 }
             }
         }
@@ -250,21 +349,17 @@ fn deactivate_activate_user_by_id(user_database: &mut HashMap<u64, User>, activa
     };
 }
 
-fn update_user_infomation_by_id(user_database: &mut HashMap<u64, User>) {
-    let account_id: u64 = print_user_info_by_id(&user_database);
+async fn update_user_infomation_by_id() {
+    let account_id: u64 = print_user_info_by_id().await;
     if account_id != 0 {
         let menu_option = get_update_user_property_option();
-        match menu_option {
-            UpdateOptions::None => {
-                println!("Skip Updating User Information.");
-                return;
-            }
-            _ => {},
+        if let UpdateOptions::None = menu_option {
+            println!("Skip Updating User Information.");
+            return;
         }
+        let mut user_info = find_user_by_account_id(account_id).await.unwrap();
         print_borderline('#');
-        let mut user_info = find_user_by_account_id(&user_database, account_id).unwrap().clone();
-        match menu_option
-        {
+        match menu_option {
             UpdateOptions::FirstName => {
                 println!("Current First Name: {}", user_info.get_first_name());
                 print!("New First Name: ");
@@ -273,7 +368,7 @@ fn update_user_infomation_by_id(user_database: &mut HashMap<u64, User>) {
                 std::io::stdin().read_line(&mut first_name).unwrap();
 
                 user_info.set_first_name(first_name.trim().to_owned());
-            },
+            }
             UpdateOptions::LastName => {
                 println!("Current Last Name: {}", user_info.get_last_name());
                 print!("New Last Name: ");
@@ -282,7 +377,7 @@ fn update_user_infomation_by_id(user_database: &mut HashMap<u64, User>) {
                 std::io::stdin().read_line(&mut last_name).unwrap();
 
                 user_info.set_last_name(last_name.trim().to_owned());
-            },
+            }
             UpdateOptions::Email => {
                 println!("Current Email Id: {}", user_info.get_email());
                 print!("New Email Id: ");
@@ -291,36 +386,59 @@ fn update_user_infomation_by_id(user_database: &mut HashMap<u64, User>) {
                 std::io::stdin().read_line(&mut email).unwrap();
 
                 user_info.set_email(email.trim().to_owned());
-            },
+            }
             UpdateOptions::None => {
-                print_header(format!("No data would be updated for account Id: {}", account_id));
-            },
+                print_header(format!(
+                    "No data would be updated for account Id: {}",
+                    account_id
+                ));
+            }
         }
-        user_database.insert(user_info.get_account_id(), user_info);
+        let credential =
+            String::from_utf8(BASE64_STANDARD.decode(DB_CREDENTIAL_PASS).unwrap()).unwrap();
+        let postgres_config = PostgresConfig::new(
+            "localhost".to_string(),
+            5432,
+            "studentdb".to_string(),
+            "rustapp".to_string(),
+            credential,
+        );
+        let postgres_cli = PostgresClient::new(&postgres_config);
+        let updateed_user = postgres_cli
+            .await
+            .update_user_infomation_by_id(user_info)
+            .await;
+        match updateed_user {
+            Ok(user) => print_user_info(&user),
+            Err(_) => println!("Cannot update user information."),
+        }
+
         print_header("Updated User Information Successfully!".to_string());
-    }
-    else {
+    } else {
         print_header("Skip Updating User Information.".to_string());
     }
 }
 
-fn find_user_by_account_id(user_database: &HashMap<u64, User>, account_id: u64) -> Option<User> {
-
-    if user_database.len() == 0  || ! user_database.contains_key(&account_id) {
-        print_padded("Cannot Find User Information!".to_string(), ' ');
-        return None;
-    }
-    else{
-        let user_info = user_database.get(&account_id).unwrap().clone();
-        return Some(user_info);
+async fn find_user_by_account_id(account_id: u64) -> Option<User> {
+    let credential =
+        String::from_utf8(BASE64_STANDARD.decode(DB_CREDENTIAL_PASS).unwrap()).unwrap();
+    let postgres_config = PostgresConfig::new(
+        "localhost".to_string(),
+        5432,
+        "studentdb".to_string(),
+        "rustapp".to_string(),
+        credential,
+    );
+    let postgres_cli = PostgresClient::new(&postgres_config);
+    let result_set = postgres_cli.await.find_user_by_account_id(account_id).await;
+    match result_set {
+        Ok(user) => Some(user),
+        Err(_) => None,
     }
 }
 
-fn main() -> ! {
-
-    let mut user_database: HashMap<u64, User> = HashMap::new();
-
-    let mut account_id_index = 1;
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     clear_terminal_screen();
 
     loop {
@@ -328,33 +446,33 @@ fn main() -> ! {
 
         match menu_option {
             UserCrudOptions::Add => {
-                add_to_user_database(account_id_index, &mut user_database);
-                account_id_index += account_id_index;
+                add_to_user_database().await;
             }
             UserCrudOptions::Read => {
-                print_user_info_by_id(&user_database);
+                print_user_info_by_id().await;
             }
             UserCrudOptions::ReadAll => {
-                print_all_user_info(&user_database);
+                print_all_user_info().await;
             }
             UserCrudOptions::Update => {
-                update_user_infomation_by_id(&mut user_database)
+                update_user_infomation_by_id().await;
             }
             UserCrudOptions::Deactivate => {
-                deactivate_activate_user_by_id(&mut user_database, false);
-            },
+                deactivate_activate_user_by_id(false).await;
+            }
             UserCrudOptions::None => {
                 print_header("Exiting Program!!".to_string());
                 exit(0)
             }
             UserCrudOptions::Activate => {
-                deactivate_activate_user_by_id(&mut user_database, true);
-            },
+                deactivate_activate_user_by_id(true).await;
+            }
         };
         println!("\n\nPress enter to continue...");
         let mut buffer = String::new();
-        std::io::stdin().read_line(&mut buffer).expect("Failed to read line");
+        std::io::stdin()
+            .read_line(&mut buffer)
+            .expect("Failed to read line");
         clear_terminal_screen();
     }
-
 }

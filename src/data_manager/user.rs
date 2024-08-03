@@ -1,15 +1,16 @@
 use std::fmt;
 
-#[warn(dead_code)]
-#[derive(Debug, Clone)]
+use serde::{Deserialize, Serialize};
 
+#[warn(dead_code)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     active: bool,
     first_name: String,
     last_name: String,
     username: String,
     email: String,
-    account_id: u64,
+    account_id: Option<u64>,
 }
 
 #[allow(dead_code)]
@@ -28,7 +29,7 @@ impl User {
             last_name,
             username,
             email,
-            account_id,
+            account_id: Some(account_id),
         }
     }
 
@@ -58,15 +59,15 @@ impl User {
     pub fn get_last_name(&self) -> String {
         self.last_name.clone()
     }
-    pub fn get_username(&self)  -> String {
+    pub fn get_username(&self) -> String {
         self.username.clone()
     }
 
     pub fn get_account_id(&self) -> u64 {
-        self.account_id
+        self.account_id.unwrap_or(0)
     }
 
-    pub fn get_email(&self)  -> String {
+    pub fn get_email(&self) -> String {
         self.email.clone()
     }
 
