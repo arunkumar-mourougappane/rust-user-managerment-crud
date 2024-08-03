@@ -65,4 +65,6 @@ jobs:
       - name: Build
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/studentdb
-        run: cargo build --verbose
+        run: |
+          cargo build --verbose
+          cargo build --release
