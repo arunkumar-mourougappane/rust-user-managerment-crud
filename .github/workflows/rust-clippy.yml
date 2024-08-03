@@ -74,7 +74,7 @@ jobs:
         env:
           PGPASSWORD: postgres
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.7
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@b2417cde72dcf67f306c0ae8e0828a81bf0b189f #@v1.0.6
