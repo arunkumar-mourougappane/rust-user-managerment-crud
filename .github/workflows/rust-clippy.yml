@@ -22,11 +22,57 @@ jobs:
   rust-clippy-analyze:
     name: Run rust-clippy analyzing
     runs-on: ubuntu-latest
+    services:
+      # Label used to access the service container
+      postgres:
+        # Docker Hub image
+        image: postgres
+        # Provide the password for postgres
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres_db
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          # Maps tcp port 5432 on service container to the host
+          - 5432:5432
     permissions:
       contents: read
       security-events: write
       actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
     steps:
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      # queries database with postgres client
+      - name: Create Database
+        run: psql -h localhost -d postgres -U postgres -c 'CREATE DATABASE "studentdb"'
+        env:
+          PGPASSWORD: postgres
+      - name: Create Table
+        run: psql -h localhost -d studentdb -U postgres -c 'CREATE TABLE
+          public.user_info (
+            account_id serial NOT NULL,
+            first_name character varying(255) NOT NULL,
+            last_name character varying(255) NOT NULL,
+            username character varying(255) NOT NULL,
+            email character varying(255) NOT NULL,
+            active boolean NOT NULL DEFAULT false,
+            created_at timestamp without time zone NOT NULL DEFAULT now()
+          );
+          ALTER TABLE
+            public.user_info
+          ADD
+          CONSTRAINT student_info_pkey PRIMARY KEY (account_id)'
+        env:
+          PGPASSWORD: postgres
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -46,6 +92,8 @@ jobs:
           cargo clippy
           --all-features
           --message-format=json | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/studentdb
         continue-on-error: true
 
       - name: Upload analysis results to GitHub
